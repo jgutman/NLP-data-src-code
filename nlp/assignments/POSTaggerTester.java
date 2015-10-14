@@ -881,6 +881,7 @@ public class POSTaggerTester {
 		for (TaggedSentence sentence : testSentences) {
 			List<String> words = sentence.getWords();
 			List<String> guessedTags = posTagger.tag(words);
+			System.out.println(words.get(0));
 			for (int i = 0; i < words.size(); i++) {
 				writer.write(words.get(i) + "\t" + guessedTags.get(i) + "\n");
 			}
