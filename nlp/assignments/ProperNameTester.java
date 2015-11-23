@@ -33,7 +33,47 @@ import nlp.util.Pair;
  * implementations of the ProbabilisticClassifer interface and constructing them
  * there.
  */
+
 public class ProperNameTester {
+	
+	public static class POSFeatureExtractor implements
+			FeatureExtractor<String, String> {
+		
+		public Counter<String> extractFeatures(String name) {
+			Counter<String> features = new Counter<String>();
+			List<Character> charList = stringToList(name);
+			BoundedList<Character> flexCharList = new BoundedList<Character>(charList);
+			
+			// add character unigram features
+			//for (int i = 0; i < charList.size(); i++) {
+			//	Character character = charList.get(i);
+			//	Character prev = flexCharList.get(i-1);
+			//	Character prevprev = flexCharList.get(i-2);
+				//features.incrementCount("UNI-" + character, 1.0);
+							
+			//	if (prev != null) {
+				//	features.incrementCount("BI-" + prev + character, 1.0);
+			//		if (prevprev != null)
+			//			features.incrementCount("TRI-" + prevprev + prev + character, 1.0);
+			//	}
+			//}
+			int n = flexCharList.size();
+			features.incrementCount("SUFFIX-" + flexCharList.get(n-3) + flexCharList.get(n-2) 
+					+ flexCharList.get(n-1), 1.0);
+			features.incrementCount("PREFIX-" + flexCharList.get(0) + flexCharList.get(1) + flexCharList.get(2), 1.0);
+			if (Character.isUpperCase(flexCharList.get(0)))
+				features.incrementCount("BeginsUppercase", 1.0);
+			if (flexCharList.get(0).equals("h") && flexCharList.get(1).equals("t") && flexCharList.get(2).equals("t") &&
+					flexCharList.get(3).equals("p"))
+				features.incrementCount("BeginsHTTP", 1.0);
+			if (Character.isDigit(flexCharList.get(0)))
+				features.incrementCount("BeginsDigit", 1.0);
+			else if (!Character.isLetterOrDigit(flexCharList.get(0)))
+				features.incrementCount("BeginsPunctuation", 1.0);
+			
+			return features;	
+		}
+	}
 
 	public static class ProperNameFeatureExtractor implements
 			FeatureExtractor<String, String> {
@@ -149,7 +189,22 @@ public class ProperNameTester {
 		reader.close();
 		return labeledInstances;
 	}
-
+	
+	public static List<LabeledInstance<String, String>> convertPOSData(List<POSTaggerTester.TaggedSentence> 
+			sentenceData) {
+		List<LabeledInstance<String, String>> labeledInstances = new ArrayList<LabeledInstance<String, String>>();
+		for (POSTaggerTester.TaggedSentence sentence : sentenceData) {
+			List<String> words = sentence.getWords();
+			List<String> tags = sentence.getTags();
+			for (int i=0; i<words.size(); i++) {
+				LabeledInstance<String, String> labeledInstance = new LabeledInstance<String, String>(
+						tags.get(i), words.get(i));
+				labeledInstances.add(labeledInstance);
+			}
+		}
+		return labeledInstances;
+	}
+	
 	private static void testClassifier(
 			ProbabilisticClassifier<String, String> classifier,
 			List<LabeledInstance<String, String>> testData, boolean verbose) {

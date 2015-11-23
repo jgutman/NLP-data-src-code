@@ -587,6 +587,8 @@ public class POSTaggerTester {
 		CounterMap<String, String> tagsToWords = new CounterMap<String, String>();
 		Set<String> seenWords = new HashSet<String>();
 		Set<String> seenTagBigrams = new HashSet<String>();
+		
+		ProbabilisticClassifier<String, String> classifier;
 		double lambda1, lambda2;
 		boolean maxEnt;
 		int N = 0;
@@ -664,11 +666,15 @@ public class POSTaggerTester {
 			}
 			else {
 				double pUnknown = 0;
-				ProbabilisticClassifierFactory<String, String> factory;
+				Counter<String> tagGivenUNK = new Counter<String>();
+				
 				if (maxEnt) {
-					factory = new MaximumEntropyClassifier.Factory<String, String, 
-							String>(.7, 100, new ProperNameTester.ProperNameFeatureExtractor());
+					// This is the probability of seeing an unknown word, not the probability of seeing 
+					// an unknown word with the given features
 					pUnknown = unknownWordTags.totalCount() / N;
+					tagGivenUNK = classifier.getProbabilities(word);
+					//pUnknown = 1.0 / unknownWordTags.totalCount();
+					
 				}
 						
 				for (String tag : possibleTags) {
@@ -683,7 +689,8 @@ public class POSTaggerTester {
 					double emissionUnknown;
 					if (maxEnt) {
 						double pTag = tagCounter.getCount(tag);
-						double pTagGivenUnknown = 0;
+						//double pTag = unknownWordTags.getCount(tag) / unknownWordTags.totalCount();
+						double pTagGivenUnknown = tagGivenUNK.getCount(tag);
 						emissionUnknown = Math.log(pTagGivenUnknown * pUnknown / pTag);
 					}
 					else {
@@ -748,11 +755,13 @@ public class POSTaggerTester {
 		}
 		
 		public TrigramHMMScorer(boolean restrictTrigrams, 
-				double lambda1, double lambda2, boolean maxEnt) {
+				double lambda1, double lambda2, boolean maxEnt, 
+				ProbabilisticClassifier<String, String> classifier) {
 			super(restrictTrigrams);
 			this.lambda1 = lambda1;
 			this.lambda2 = lambda2;
 			this.maxEnt = maxEnt;
+			this.classifier = classifier;
 		}
 	}
 
@@ -783,6 +792,7 @@ public class POSTaggerTester {
 			int position = localTrigramContext.getPosition();
 			String word = localTrigramContext.getWords().get(position);
 			Counter<String> tagCounter = unknownWordTags;
+			//System.out.println(unknownWordTags.argMax());
 			if (wordsToTags.keySet().contains(word)) {
 				tagCounter = wordsToTags.getCounter(word);
 			}
@@ -881,7 +891,7 @@ public class POSTaggerTester {
 		for (TaggedSentence sentence : testSentences) {
 			List<String> words = sentence.getWords();
 			List<String> guessedTags = posTagger.tag(words);
-			System.out.println(words.get(0));
+			
 			for (int i = 0; i < words.size(); i++) {
 				writer.write(words.get(i) + "\t" + guessedTags.get(i) + "\n");
 			}
@@ -1026,16 +1036,29 @@ public class POSTaggerTester {
 		List<TaggedSentence> testSentences = readTaggedSentences(basePath
 				+ "/en-web-test.blind", false);
 		System.out.println("done.");
+		
+		ProbabilisticClassifierFactory<String, String> factory;
+		ProbabilisticClassifier<String, String> classifier = null;
+		
+		// Train maxEntClassifier
+		boolean maxent = true;
+		//boolean maxent = false;
+		if (maxent) {
+			List<LabeledInstance<String, String>> convertedTrainingData = ProperNameTester.convertPOSData(
+					trainTaggedSentences);
+			factory = new MaximumEntropyClassifier.Factory<String, String, 
+					String>(1.0, 60, new ProperNameTester.POSFeatureExtractor());
+			classifier = factory.trainClassifier(convertedTrainingData);
+		}
 
 		// Construct tagger components
 		// TODO : improve on the MostFrequentTagScorer
 		//LocalTrigramScorer localTrigramScorer = new MostFrequentTagScorer(false);
-		LocalTrigramScorer localTrigramScorer = new TrigramHMMScorer(true, .6, .3, false);
+		LocalTrigramScorer localTrigramScorer = new TrigramHMMScorer(true, .6, .3, maxent, classifier);
 		// TODO : improve on the GreedyDecoder
 		//TrellisDecoder<State> trellisDecoder = new GreedyDecoder<State>();
 		TrellisDecoder<State> trellisDecoder = new ViterbiDecoder<State>();
 
-		// Train tagger
 		POSTagger posTagger = new POSTagger(localTrigramScorer, trellisDecoder);
 		posTagger.train(trainTaggedSentences);
 

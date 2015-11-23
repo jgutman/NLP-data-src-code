@@ -12,6 +12,7 @@ import nlp.math.LBFGSMinimizer;
 import nlp.util.Counter;
 import nlp.util.Indexer;
 import nlp.util.Pair;
+import nlp.math.SloppyMath;
 
 /**
  * Maximum entropy classifier for assignment 2. You will have to fill in the
@@ -43,13 +44,13 @@ public class MaximumEntropyClassifier<I, F, L> implements
 			double[] initialWeights = buildInitialWeights(indexLinearizer);
 			EncodedDatum[] data = encodeData(trainingData, encoding);
 			// build a minimizer object
-			GradientMinimizer minimizer = new LBFGSMinimizer(iterations);
+			LBFGSMinimizer minimizer = new LBFGSMinimizer(iterations);
 			// build the objective function for this data
 			DifferentiableFunction objective = new ObjectiveFunction<F, L>(
 					encoding, data, indexLinearizer, sigma);
 			// learn our voting weights
 			double[] weights = minimizer.minimize(objective, initialWeights,
-					1e-4);
+					1e-4, false);
 			// build a classifier using these weights (and the data encodings)
 			return new MaximumEntropyClassifier<I, F, L>(weights, encoding,
 					indexLinearizer, featureExtractor);
